@@ -12,11 +12,16 @@
 - 📊 Theo dõi tiến trình tạo video real-time
 - 💾 Tự động tải video về máy khi hoàn thành
 
-🔄 **Đang phát triển:**
-- 🤖 Tích hợp Gemini API để verify cookies thực
-- 🎬 Tích hợp VEO3 API để tạo video thực
-- 🔗 Auto prompt generator với Gemini AI
-- 📦 Bulk download tất cả videos
+✅ **Hoàn thành cơ bản:**
+- 🤖 Cookie validation system (mock - cần API key thực)
+- 🎬 Video generation workflow (mock - cần VEO3 API thực)  
+- 🔗 Auto prompt generator với Gemini AI (template sẵn)
+- 📦 Individual video download system
+
+🔄 **Cần tích hợp thực:**
+- Gemini API key thực để verify cookies
+- VEO3 API endpoint thực để tạo video
+- Background task queue (Celery/Redis) cho production
 
 ## 🚀 Cài đặt và chạy
 
@@ -28,19 +33,24 @@ pip install -r requirements.txt
 
 ### 2. Cấu hình environment
 ```bash
-# Copy và chỉnh sửa file .env
-cp .env.example .env
+# File .env đã có sẵn với cấu hình mặc định
+# Chỉnh sửa nếu cần thiết
 ```
 
 ### 3. Chạy ứng dụng
 ```bash
-python app.py
+python3 app.py
 ```
 
 ### 4. Truy cập ứng dụng
 ```
-http://localhost:5000
+Local: http://localhost:5000
+Public URL: https://5000-i69ns191g1897mmbo3aua-6532622b.e2b.dev
 ```
+
+### 5. File mẫu để test
+- `sample_cookies.txt` - File cookies mẫu
+- `sample_prompts.txt` - File prompts mẫu
 
 ## 📁 Cấu trúc project
 
@@ -172,10 +182,16 @@ A time-lapse of clouds moving over a field of flowers
 
 ## 🚧 Development Status
 
-- **Phase 1** ✅: Basic UI và file handling
-- **Phase 2** 🔄: Gemini API integration (in progress)
-- **Phase 3** ⏳: VEO3 API integration (pending)
-- **Phase 4** ⏳: Advanced features (planned)
+- **Phase 1** ✅: Basic UI và file handling - HOÀN THÀNH
+- **Phase 2** ✅: Cookie management system - HOÀN THÀNH (mock)
+- **Phase 3** ✅: Video generation workflow - HOÀN THÀNH (mock)
+- **Phase 4** ⏳: Real API integration - CẦN API KEYS THỰC
+
+## 🌐 URLs
+
+- **Ứng dụng web**: https://5000-i69ns191g1897mmbo3aua-6532622b.e2b.dev
+- **GitHub**: https://github.com/nbdat92/gemini-veo3-cre
+- **Local**: http://localhost:5000
 
 ## 📞 Hỗ trợ
 
