@@ -7,44 +7,89 @@ console.log('Debug.js loaded');
 // Simple Loading Manager
 const SimpleLoader = {
     modal: null,
+    isShowing: false,
+    timeoutId: null,
     
     show(message) {
-        console.log('SimpleLoader.show:', message);
+        console.log('SimpleLoader.show:', message, 'isShowing:', this.isShowing);
+        
+        // Clear any existing timeout
+        if (this.timeoutId) {
+            clearTimeout(this.timeoutId);
+        }
+        
         const modalEl = document.getElementById('loadingModal');
         const messageEl = document.getElementById('loadingMessage');
         
         if (messageEl) messageEl.textContent = message;
         
-        if (modalEl) {
-            // Force hide first
+        if (modalEl && !this.isShowing) {
+            // Force hide any existing modals first
             this.hide();
             
-            this.modal = new bootstrap.Modal(modalEl);
+            this.modal = new bootstrap.Modal(modalEl, {
+                backdrop: 'static',
+                keyboard: false
+            });
             this.modal.show();
+            this.isShowing = true;
             
-            // Safety timeout
-            setTimeout(() => {
-                console.log('Safety timeout - hiding modal');
-                this.hide();
-            }, 10000);
+            // Safety timeout - reduced to 5 seconds for faster feedback
+            this.timeoutId = setTimeout(() => {
+                console.warn('⚠️ SAFETY TIMEOUT - Force hiding modal after 5 seconds');
+                this.forceHide();
+            }, 5000);
         }
     },
     
     hide() {
-        console.log('SimpleLoader.hide called');
+        console.log('SimpleLoader.hide called, isShowing:', this.isShowing);
+        
+        // Clear timeout
+        if (this.timeoutId) {
+            clearTimeout(this.timeoutId);
+            this.timeoutId = null;
+        }
+        
+        if (this.isShowing) {
+            this.forceHide();
+        }
+    },
+    
+    forceHide() {
+        console.log('SimpleLoader.forceHide - forcing cleanup');
+        
         try {
+            // Hide Bootstrap modal
             if (this.modal) {
                 this.modal.hide();
                 this.modal = null;
             }
             
-            // Force cleanup
-            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            // Force cleanup all modal elements
+            document.querySelectorAll('.modal-backdrop').forEach(el => {
+                console.log('Removing modal backdrop:', el);
+                el.remove();
+            });
+            
+            // Reset body classes and styles
             document.body.classList.remove('modal-open');
             document.body.style.overflow = '';
             document.body.style.paddingRight = '';
+            
+            // Hide modal element directly
+            const modalEl = document.getElementById('loadingModal');
+            if (modalEl) {
+                modalEl.style.display = 'none';
+                modalEl.classList.remove('show');
+            }
+            
+            this.isShowing = false;
+            console.log('✅ Modal force cleanup completed');
+            
         } catch (error) {
-            console.error('Error hiding modal:', error);
+            console.error('❌ Error in forceHide:', error);
+            this.isShowing = false;
         }
     }
 };
@@ -232,6 +277,20 @@ window.simpleStartGeneration = function() {
     alert('Tính năng tạo video đang được phát triển...');
 };
 
+// Emergency functions
+window.forceHideLoading = function() {
+    console.log('🚨 EMERGENCY: Force hiding loading modal');
+    SimpleLoader.forceHide();
+};
+
+window.debugStatus = function() {
+    console.log('Debug Status:');
+    console.log('- SimpleLoader.isShowing:', SimpleLoader.isShowing);
+    console.log('- Modal element:', document.getElementById('loadingModal'));
+    console.log('- Modal backdrops:', document.querySelectorAll('.modal-backdrop').length);
+    console.log('- Body classes:', document.body.className);
+};
+
 // Initialize when DOM ready
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Debug.js DOM ready');
@@ -243,6 +302,9 @@ document.addEventListener('DOMContentLoaded', function() {
     window.startGeneration = window.simpleStartGeneration;
     
     console.log('Debug functions registered');
+    console.log('💡 Emergency functions available:');
+    console.log('- forceHideLoading() - Force hide modal');
+    console.log('- debugStatus() - Show debug info');
     
     // Test elements exist
     const elements = {
@@ -264,4 +326,10 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         console.log('All required elements found ✅');
     }
+    
+    // Force cleanup any existing modals on page load
+    setTimeout(() => {
+        SimpleLoader.forceHide();
+        console.log('🧹 Initial cleanup completed');
+    }, 1000);
 });
