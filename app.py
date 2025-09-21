@@ -227,6 +227,16 @@ def index():
     """Trang chủ"""
     return render_template('index.html', app_state=app_state)
 
+@app.route('/test')
+def test_page():
+    """Test page cho debug JavaScript"""
+    try:
+        with open('test_js.html', 'r', encoding='utf-8') as f:
+            content = f.read()
+        return content
+    except Exception as e:
+        return f"Error loading test page: {str(e)}", 500
+
 @app.route('/upload_cookies', methods=['POST'])
 def upload_cookies():
     """Upload và verify cookies"""

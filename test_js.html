@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test JavaScript Functions</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <h2>Test JavaScript Functions</h2>
+        
+        <div class="mb-3">
+            <label for="testDescription" class="form-label">Test Description:</label>
+            <input type="text" class="form-control" id="testDescription" value="một người đàn ông đi bộ trên bãi biển">
+        </div>
+        
+        <button type="button" class="btn btn-primary" onclick="testGeneratePrompt()">
+            Test Generate Prompt
+        </button>
+        
+        <div id="testResult" class="mt-3"></div>
+        
+        <!-- Loading Modal -->
+        <div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-body text-center py-5">
+                        <div class="spinner-border text-primary mb-3" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <h5 id="loadingMessage">Đang xử lý...</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        class TestLoadingManager {
+            static currentModal = null;
+            static isShowing = false;
+            
+            static show(message = 'Đang xử lý...') {
+                console.log('TestLoadingManager.show called with:', message);
+                
+                const messageElement = document.getElementById('loadingMessage');
+                const modalElement = document.getElementById('loadingModal');
+                
+                if (messageElement) {
+                    messageElement.textContent = message;
+                }
+                
+                if (modalElement && !this.isShowing) {
+                    this.currentModal = new bootstrap.Modal(modalElement, {
+                        backdrop: 'static',
+                        keyboard: false
+                    });
+                    
+                    this.currentModal.show();
+                    this.isShowing = true;
+                    
+                    // Auto-hide after 10 seconds as safety net
+                    setTimeout(() => {
+                        if (this.isShowing) {
+                            console.warn('Auto-hiding loading modal after 10 seconds');
+                            this.hide();
+                        }
+                    }, 10000);
+                }
+            }
+            
+            static hide() {
+                console.log('TestLoadingManager.hide called, isShowing:', this.isShowing);
+                
+                if (this.currentModal && this.isShowing) {
+                    this.currentModal.hide();
+                    this.currentModal = null;
+                    this.isShowing = false;
+                }
+                
+                // Force cleanup
+                const backdrop = document.querySelector('.modal-backdrop');
+                if (backdrop) {
+                    backdrop.remove();
+                }
+                document.body.classList.remove('modal-open');
+                this.isShowing = false;
+            }
+        }
+        
+        async function testGeneratePrompt() {
+            const description = document.getElementById('testDescription').value.trim();
+            const resultDiv = document.getElementById('testResult');
+            
+            if (!description) {
+                resultDiv.innerHTML = '<div class="alert alert-warning">Vui lòng nhập mô tả!</div>';
+                return;
+            }
+            
+            TestLoadingManager.show('Đang test generate prompt...');
+            
+            try {
+                const response = await fetch('/generate_prompt', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ description: description })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                console.log('Test result:', result);
+                
+                if (result.status === 'success') {
+                    resultDiv.innerHTML = `
+                        <div class="alert alert-success">
+                            <h6>✅ Test thành công!</h6>
+                            <p><strong>Original:</strong> ${result.original_description}</p>
+                            <p><strong>Optimized:</strong> ${result.optimized_prompt}</p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="alert alert-danger">
+                            <h6>❌ Test thất bại!</h6>
+                            <p>${result.message || 'Lỗi không xác định'}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Test error:', error);
+                resultDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h6>❌ Lỗi kết nối!</h6>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            } finally {
+                TestLoadingManager.hide();
+            }
+        }
+    </script>
+</body>
+</html>
