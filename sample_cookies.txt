@@ -1,0 +1,6 @@
+__Secure-1PSID=sample_psid_value_for_testing_only
+__Secure-3PSID=sample_3psid_value_for_testing_only
+HSID=sample_hsid_value_for_testing_only
+SSID=sample_ssid_value_for_testing_only
+APISID=sample_apisid_value_for_testing_only
+SAPISID=sample_sapisid_value_for_testing_only

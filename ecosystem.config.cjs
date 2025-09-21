@@ -3,15 +3,15 @@ module.exports = {
   apps: [
     {
       name: 'gemini-veo3-generator',
-      script: 'python',
-      args: 'app.py',
+      script: 'app.py',
       cwd: '/home/user/webapp',
-      interpreter: 'python3',
+      interpreter: '/usr/bin/python3',
       env: {
         FLASK_ENV: 'development',
         FLASK_DEBUG: 'true',
         PYTHONPATH: '/home/user/webapp',
-        PORT: 5000
+        PORT: 5000,
+        HOST: '0.0.0.0'
       },
       instances: 1,
       exec_mode: 'fork',

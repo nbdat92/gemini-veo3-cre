@@ -8,7 +8,6 @@ Gemini VEO3 Video Generator Web Application
 import os
 import json
 import asyncio
-import aiohttp
 import requests
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, flash
@@ -201,19 +200,19 @@ class VEO3VideoGenerator:
             logger.error(f"Error generating video: {str(e)}")
             return {'status': 'error', 'message': str(e)}
     
-    async def download_video(self, video_url, filename):
+    def download_video(self, video_url, filename):
         """Tải video về máy"""
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(video_url) as response:
-                    if response.status == 200:
-                        filepath = os.path.join(DOWNLOAD_FOLDER, filename)
-                        with open(filepath, 'wb') as f:
-                            async for chunk in response.content.iter_chunked(8192):
-                                f.write(chunk)
-                        return True, filepath
-                    else:
-                        return False, f"HTTP {response.status}"
+            response = requests.get(video_url, stream=True, timeout=30)
+            if response.status_code == 200:
+                filepath = os.path.join(DOWNLOAD_FOLDER, filename)
+                with open(filepath, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                return True, filepath
+            else:
+                return False, f"HTTP {response.status_code}"
         except Exception as e:
             logger.error(f"Error downloading video: {str(e)}")
             return False, str(e)
@@ -348,7 +347,11 @@ def start_generation():
         app_state['generated_videos'] = []
         
         # Process videos (simplified - in real app would use background tasks)
-        asyncio.create_task(process_video_generation(settings))
+        # Note: In production, use Celery or similar for background tasks
+        import threading
+        thread = threading.Thread(target=lambda: asyncio.run(process_video_generation(settings)))
+        thread.daemon = True
+        thread.start()
         
         return jsonify({
             'status': 'success',
@@ -371,7 +374,7 @@ async def process_video_generation(settings):
             if result['status'] == 'success':
                 # Download video
                 video_filename = f"video_{i+1}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
-                download_success, download_path = await veo3_generator.download_video(
+                download_success, download_path = veo3_generator.download_video(
                     result['video_url'], 
                     video_filename
                 )
