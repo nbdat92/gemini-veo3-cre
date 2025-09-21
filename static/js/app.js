@@ -30,28 +30,83 @@ const DOM = {
 
 // API utility functions
 const API = {
-    async post(url, data) {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
-        });
-        return await response.json();
+    async post(url, data, timeout = 30000) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data),
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            clearTimeout(timeoutId);
+            throw error;
+        }
     },
     
-    async postFormData(url, formData) {
-        const response = await fetch(url, {
-            method: 'POST',
-            body: formData
-        });
-        return await response.json();
+    async postFormData(url, formData, timeout = 30000) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                body: formData,
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                throw new Error('Request timeout');
+            }
+            throw error;
+        }
     },
     
-    async get(url) {
-        const response = await fetch(url);
-        return await response.json();
+    async get(url, timeout = 30000) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        
+        try {
+            const response = await fetch(url, {
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                throw new Error('Request timeout');
+            }
+            throw error;
+        }
     }
 };
 
@@ -170,16 +225,51 @@ class ToastManager {
 
 // Loading manager
 class LoadingManager {
+    static currentModal = null;
+    
     static show(message = 'Đang xử lý...') {
-        DOM.get('loadingMessage').textContent = message;
-        const modal = new bootstrap.Modal(DOM.get('loadingModal'));
-        modal.show();
-        return modal;
+        try {
+            const messageElement = DOM.get('loadingMessage');
+            const modalElement = DOM.get('loadingModal');
+            
+            if (messageElement) {
+                messageElement.textContent = message;
+            }
+            
+            if (modalElement) {
+                // Hide existing modal first
+                this.hide();
+                
+                this.currentModal = new bootstrap.Modal(modalElement, {
+                    backdrop: 'static',
+                    keyboard: false
+                });
+                this.currentModal.show();
+                return this.currentModal;
+            }
+        } catch (error) {
+            console.error('Error showing loading modal:', error);
+        }
     }
     
     static hide() {
-        const modal = bootstrap.Modal.getInstance(DOM.get('loadingModal'));
-        if (modal) modal.hide();
+        try {
+            if (this.currentModal) {
+                this.currentModal.hide();
+                this.currentModal = null;
+            }
+            
+            // Fallback: try to get existing modal instance
+            const modalElement = DOM.get('loadingModal');
+            if (modalElement) {
+                const existingModal = bootstrap.Modal.getInstance(modalElement);
+                if (existingModal) {
+                    existingModal.hide();
+                }
+            }
+        } catch (error) {
+            console.error('Error hiding loading modal:', error);
+        }
     }
 }
 
@@ -322,6 +412,19 @@ class VideoManager {
 // Main application functions
 const App = {
     async uploadPrompts(file, input) {
+        console.log('Starting upload prompts:', file.name, file.size, 'bytes');
+        
+        // Validate file first
+        if (!file.name.toLowerCase().endsWith('.txt')) {
+            ToastManager.error('Chỉ chấp nhận file .txt!');
+            return;
+        }
+        
+        if (file.size > 16 * 1024 * 1024) { // 16MB limit
+            ToastManager.error('File quá lớn! Tối đa 16MB.');
+            return;
+        }
+        
         const formData = new FormData();
         formData.append('prompts_file', file);
         
@@ -329,18 +432,20 @@ const App = {
         
         try {
             const result = await API.postFormData('/upload_prompts', formData);
-            LoadingManager.hide();
+            console.log('Upload result:', result);
             
             if (result.status === 'success') {
                 AppState.currentPrompts = result.prompts || [];
                 this.displayPromptsPreview(result.prompts_count, result.prompts);
                 ToastManager.success(result.message);
             } else {
-                ToastManager.error(result.message);
+                ToastManager.error(result.message || 'Lỗi không xác định');
             }
         } catch (error) {
-            LoadingManager.hide();
+            console.error('Upload error:', error);
             ToastManager.error('Lỗi khi tải file: ' + error.message);
+        } finally {
+            LoadingManager.hide();
         }
     },
     
@@ -383,7 +488,19 @@ const App = {
         LoadingManager.show('Đang tạo prompt tối ưu...');
         
         try {
-            const result = await API.post('/generate_prompt', { description });
+            const response = await fetch('/generate_prompt', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ description: description })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
             LoadingManager.hide();
             
             if (result.status === 'success') {
@@ -392,9 +509,10 @@ const App = {
                 DOM.get('generatedPrompt').classList.add('fade-in');
                 ToastManager.success('Prompt đã được tạo thành công!');
             } else {
-                ToastManager.error(result.message);
+                ToastManager.error(result.message || 'Lỗi không xác định');
             }
         } catch (error) {
+            console.error('Generate prompt error:', error);
             LoadingManager.hide();
             ToastManager.error('Lỗi khi tạo prompt: ' + error.message);
         }
@@ -523,8 +641,17 @@ window.updateFileName = function(input, displayId) {
 };
 
 window.uploadPrompts = function(input) {
+    console.log('uploadPrompts called with input:', input);
     if (input.files && input.files[0]) {
-        App.uploadPrompts(input.files[0], input);
+        console.log('File selected:', input.files[0].name);
+        App.uploadPrompts(input.files[0], input).catch(error => {
+            console.error('Upload failed:', error);
+            LoadingManager.hide();
+            ToastManager.error('Lỗi upload: ' + error.message);
+        });
+    } else {
+        console.log('No file selected');
+        ToastManager.warning('Vui lòng chọn file!');
     }
 };
 
