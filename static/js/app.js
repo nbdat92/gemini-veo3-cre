@@ -226,9 +226,12 @@ class ToastManager {
 // Loading manager
 class LoadingManager {
     static currentModal = null;
+    static isShowing = false;
     
     static show(message = 'Đang xử lý...') {
         try {
+            console.log('LoadingManager.show called with message:', message);
+            
             const messageElement = DOM.get('loadingMessage');
             const modalElement = DOM.get('loadingModal');
             
@@ -236,7 +239,7 @@ class LoadingManager {
                 messageElement.textContent = message;
             }
             
-            if (modalElement) {
+            if (modalElement && !this.isShowing) {
                 // Hide existing modal first
                 this.hide();
                 
@@ -244,7 +247,18 @@ class LoadingManager {
                     backdrop: 'static',
                     keyboard: false
                 });
+                
                 this.currentModal.show();
+                this.isShowing = true;
+                
+                // Auto-hide after 30 seconds as safety net
+                setTimeout(() => {
+                    if (this.isShowing) {
+                        console.warn('Auto-hiding loading modal after 30 seconds');
+                        this.hide();
+                    }
+                }, 30000);
+                
                 return this.currentModal;
             }
         } catch (error) {
@@ -254,21 +268,38 @@ class LoadingManager {
     
     static hide() {
         try {
-            if (this.currentModal) {
+            console.log('LoadingManager.hide called, isShowing:', this.isShowing);
+            
+            if (this.currentModal && this.isShowing) {
                 this.currentModal.hide();
                 this.currentModal = null;
+                this.isShowing = false;
             }
             
-            // Fallback: try to get existing modal instance
+            // Fallback: force hide any existing modal
             const modalElement = DOM.get('loadingModal');
             if (modalElement) {
                 const existingModal = bootstrap.Modal.getInstance(modalElement);
                 if (existingModal) {
                     existingModal.hide();
                 }
+                
+                // Remove modal backdrop if still exists
+                const backdrop = document.querySelector('.modal-backdrop');
+                if (backdrop) {
+                    backdrop.remove();
+                }
+                
+                // Remove modal-open class from body
+                document.body.classList.remove('modal-open');
             }
+            
+            this.isShowing = false;
         } catch (error) {
             console.error('Error hiding loading modal:', error);
+            // Force reset
+            this.isShowing = false;
+            this.currentModal = null;
         }
     }
 }
@@ -488,33 +519,31 @@ const App = {
         LoadingManager.show('Đang tạo prompt tối ưu...');
         
         try {
-            const response = await fetch('/generate_prompt', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ description: description })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            const result = await response.json();
-            LoadingManager.hide();
+            const result = await API.post('/generate_prompt', { description: description });
+            console.log('Generate prompt result:', result);
             
             if (result.status === 'success') {
-                DOM.get('optimizedPrompt').value = result.optimized_prompt;
-                DOM.get('generatedPrompt').style.display = 'block';
-                DOM.get('generatedPrompt').classList.add('fade-in');
+                const optimizedPromptElement = DOM.get('optimizedPrompt');
+                const generatedPromptElement = DOM.get('generatedPrompt');
+                
+                if (optimizedPromptElement) {
+                    optimizedPromptElement.value = result.optimized_prompt;
+                }
+                
+                if (generatedPromptElement) {
+                    generatedPromptElement.style.display = 'block';
+                    generatedPromptElement.classList.add('fade-in');
+                }
+                
                 ToastManager.success('Prompt đã được tạo thành công!');
             } else {
                 ToastManager.error(result.message || 'Lỗi không xác định');
             }
         } catch (error) {
             console.error('Generate prompt error:', error);
-            LoadingManager.hide();
             ToastManager.error('Lỗi khi tạo prompt: ' + error.message);
+        } finally {
+            LoadingManager.hide();
         }
     },
     
@@ -656,11 +685,20 @@ window.uploadPrompts = function(input) {
 };
 
 window.generatePrompt = function() {
-    App.generatePrompt();
+    App.generatePrompt().catch(error => {
+        console.error('Generate prompt failed:', error);
+        LoadingManager.hide();
+        ToastManager.error('Lỗi khi tạo prompt: ' + error.message);
+    });
 };
 
 window.copyPrompt = function() {
-    App.copyPrompt();
+    try {
+        App.copyPrompt();
+    } catch (error) {
+        console.error('Copy prompt failed:', error);
+        ToastManager.error('Lỗi khi copy prompt: ' + error.message);
+    }
 };
 
 window.startGeneration = function() {
